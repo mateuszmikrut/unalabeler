@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Sync dnsmasq DHCP lease hostnames to UniFi Network Application client aliases.
-Reads /var/lib/dnsmasq/dnsmasq.leases and updates UniFi client names via API.
+Sync DNS entries with UNIFI device labels
 """
 import logging
 import sys
@@ -14,12 +13,11 @@ from dnsquery import lookup
 
 ## Logging
 logging.basicConfig(
-    level = getattr(logging, UL_LOGLEVEL),
+    level = getattr(logging, UL_LOGLEVEL, logging.INFO),
     format = '%(asctime)s - %(levelname)s - %(message)s'
 )  
 logger = logging.getLogger(__name__)
-if UL_LOGLEVEL == "DEBUG":
-  logger.info("Debug logging is enabled")
+logger.info(f"Log level set to: {UL_LOGLEVEL}")
 
 def main():
   logger.info("Starting UniFi hostname sync")
@@ -65,7 +63,11 @@ def main():
 
 
 if __name__ == "__main__":
-  while True:
+  if UL_DRYRUN:
+    logger.debug("DRY RUN only - single execution")
     main()
-    logger.debug(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
-    sleep(int(UL_REFRESH_MIN) * 60)
+  else:
+    while True:
+      main()
+      logger.debug(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
+      sleep(int(UL_REFRESH_MIN) * 60)
