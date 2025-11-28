@@ -14,14 +14,14 @@ All configuration is done via environment variables:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `UL_UNIFI_HOST` | ✅ Yes | - | UniFi controller URL (e.g., `https://unifi.example.com`) |
-| `UL_UNIFI_USER` | ✅ Yes | - | UniFi controller username |
-| `UL_UNIFI_PASS` | ✅ Yes | - | UniFi controller password |
-| `UL_UNIFI_SITE` | No | `default` | UniFi site name |
-| `UL_REFRESH_MIN` | No | `120` | Refresh interval in minutes (not in DRYRUN) |
-| `UL_LOGLEVEL` | No | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `UL_SHORTNAMES` | No | `true` | Use short hostnames (strip domain suffix) |
-| `UL_DRYRUN` | No | `false` | Dry-run mode - log changes without applying them - It runs and exit|
+| `UL_UNIFI_HOST` | Y | - | UniFi controller URL (e.g., `https://unifi.example.com`) |
+| `UL_UNIFI_USER` | Y | - | UniFi controller username |
+| `UL_UNIFI_PASS` | Y | - | UniFi controller password |
+| `UL_UNIFI_SITE` | N | `default` | UniFi site name |
+| `UL_REFRESH_MIN` | N | `120` | Refresh interval in minutes (not in DRYRUN) |
+| `UL_LOGLEVEL` | N | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `UL_SHORTNAMES` | N | `true` | Use short hostnames (strip domain suffix) |
+| `UL_DRYRUN` | N | `false` | Dry-run mode - log changes without applying them - It runs and exit|
 
 
 ## Running
