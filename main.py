@@ -8,7 +8,7 @@ from pathlib import Path
 from time import sleep
 
 from unifiapi import UniFiAPI
-from config import UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE, UL_LOGLEVEL, UL_DRYRUN, UL_REFRESH_MIN, validate_config
+from config import UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE, UL_LOGLEVEL, UL_DRYRUN, UL_REFRESH_MIN, UL_SHORTNAMES, validate_config
 from dnsquery import lookup
 
 ## Logging
@@ -47,27 +47,42 @@ def main():
         logger.debug(f"No DNS name found for IP {ip}, skipping client")
         continue
 
+      if UL_SHORTNAMES:
+          logger.debug(f"Using shortname for DNS name '{dnsname}'")
+          dnsname = dnsname.split('.')[0]
+          logger.debug(f"Shortened DNS name to: {dnsname}")
+
       if dnsname != name:
         if not UL_DRYRUN:
-          # TODO: Update names in Unifi
-          pass
+          ## Set the name in Unifi
+          try:
+            unifi.set_client_alias(client_id, dnsname)
+            logger.info(f"Updated client with {ip} ({mac}) label to '{dnsname}'")
+          except Exception as e:
+            logger.error(f"Error updating client with {ip} ({mac}) label to '{dnsname}': {e}")
         else:
           logger.info(f"[DRY RUN] Would update client with {ip} ({mac}) label to '{dnsname}'")
+      else:
+        logger.debug(f"Client name '{name}' already matches DNS name '{dnsname}', no update needed")
       
-
+      
   finally:
     logger.debug("Logging out from UniFi controller")
     unifi.logout()
-  
-  logger.info("Sync completed successfully")
+
+  logger.info(f"Sync completed successfully - processed {len(clients)} devices")
 
 
 if __name__ == "__main__":
-  if UL_DRYRUN:
-    logger.debug("DRY RUN only - single execution")
-    main()
-  else:
-    while True:
+  try:
+    if UL_DRYRUN:
+      logger.debug("DRY RUN only - single execution")
       main()
-      logger.debug(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
-      sleep(int(UL_REFRESH_MIN) * 60)
+    else:
+      while True:
+        main()
+        logger.debug(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
+        sleep(int(UL_REFRESH_MIN) * 60)
+  except KeyboardInterrupt:
+    logger.info("Received keyboard interrupt, exiting gracefully")
+    sys.exit(0)

@@ -12,6 +12,7 @@ UL_UNIFI_PASS = os.getenv("UL_UNIFI_PASS", "")
 UL_UNIFI_SITE = os.getenv("UL_UNIFI_SITE", "default")
 UL_REFRESH_MIN = os.getenv("UL_REFRESH_MIN", "60")
 UL_LOGLEVEL = os.getenv("UL_LOGLEVEL", "INFO").upper()
+UL_SHORTNAMES = os.getenv("UL_SHORTNAMES", "true") in ("1", "true", "yes")
 UL_DRYRUN = os.getenv("UL_DRYRUN", "false").lower() in ("1", "true", "yes")
 
 def validate_config():

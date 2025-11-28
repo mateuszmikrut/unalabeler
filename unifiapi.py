@@ -37,7 +37,7 @@ class UniFiAPI:
     try:
       response = self.session.post(url, json=payload)
       response.raise_for_status()
-      logger.info("Successfully logged in to UniFi controller")
+      logger.debug("Successfully logged in to UniFi controller")
       return True
     except requests.exceptions.RequestException as e:
       logger.error(f"Login failed: {e}")
@@ -54,7 +54,7 @@ class UniFiAPI:
       
       if data.get("meta", {}).get("rc") == "ok":
         clients = data.get("data", [])
-        logger.info(f"Retrieved {len(clients)} clients from UniFi")
+        logger.debug(f"Retrieved {len(clients)} clients from UniFi")
         return clients
       else:
         logger.error("Failed to get clients from UniFi")
@@ -63,36 +63,52 @@ class UniFiAPI:
       logger.error(f"Error getting clients: {e}")
       return []
   
-  def set_client_alias(self, mac, name):
-    """Set alias/name for a client by MAC address."""
+  def set_client_alias(self, identifier, newname):
+    """
+    Set alias/name for a client.
+    
+    Args:
+      identifier (str): Client ID or MAC address
+      newname (str): New name/alias to set
+      
+    Returns:
+      bool: True if successful, False otherwise
+    """
     url = f"{self.host}/api/s/{self.site}/rest/user"
     
-    # Find client ID first
-    clients = self.get_clients()
-    client = next((c for c in clients if c.get("mac", "").lower() == mac.lower()), None)
-    
-    if not client:
-      logger.debug(f"Client {mac} not found in UniFi (might be offline)")
-      return False
-    
-    client_id = client.get("_id")
-    if not client_id:
-      logger.warning(f"No client ID found for {mac}")
-      return False
+    # Check if identifier looks like a MAC address (contains colons)
+    if ':' in identifier:
+      # It's a MAC, need to find the client ID
+      logger.debug(f"Identifier '{identifier}' is a MAC address, looking up client ID")
+      clients = self.get_clients()
+      client = next((c for c in clients if c.get("mac", "").lower() == identifier.lower()), None)
+      
+      if not client:
+        logger.warning(f"Client with MAC {identifier} not found in UniFi")
+        return False
+      
+      client_id = client.get("_id")
+      if not client_id:
+        logger.error(f"No client ID found for MAC {identifier}")
+        return False
+      logger.debug(f"Found client ID: {client_id}")
+    else:
+      # Assume it's already a client ID
+      logger.debug(f"Using identifier '{identifier}' as client ID directly")
+      client_id = identifier
     
     # Update client alias
     payload = {
-      "name": name,
-      "_id": client_id
+      "name": newname
     }
     
     try:
       response = self.session.put(f"{url}/{client_id}", json=payload)
       response.raise_for_status()
-      logger.info(f"Updated {mac} -> {name}")
+      logger.debug(f"Updated client {identifier} name to '{newname}'")
       return True
     except requests.exceptions.RequestException as e:
-      logger.error(f"Error updating client {mac}: {e}")
+      logger.error(f"Error updating client {identifier}: {e}")
       return False
   
   def logout(self):
@@ -100,6 +116,6 @@ class UniFiAPI:
     url = f"{self.host}/api/logout"
     try:
       self.session.post(url)
-      logger.info("Logged out from UniFi controller")
+      logger.debug("Logged out from UniFi controller")
     except Exception as e:
       logger.debug(f"Logout error (non-critical): {e}")
