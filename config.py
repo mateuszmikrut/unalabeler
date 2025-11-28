@@ -10,6 +10,7 @@ UL_UNIFI_HOST = os.getenv("UL_UNIFI_HOST", "")
 UL_UNIFI_USER = os.getenv("UL_UNIFI_USER", "")
 UL_UNIFI_PASS = os.getenv("UL_UNIFI_PASS", "")
 UL_UNIFI_SITE = os.getenv("UL_UNIFI_SITE", "default")
+UL_REFRESH_MIN = os.getenv("UL_REFRESH_MIN", "60")
 UL_LOGLEVEL = os.getenv("LOGLEVEL", "INFO").upper() or os.getenv("UL_LOGLEVEL", "INFO").upper()
 UL_DRYRUN = os.getenv("UL_DRYRUN", "false").lower() in ("1", "true", "yes")
 

@@ -6,11 +6,11 @@ Reads /var/lib/dnsmasq/dnsmasq.leases and updates UniFi client names via API.
 import logging
 import sys
 from pathlib import Path
+from time import sleep
 
 from unifiapi import UniFiAPI
-from config import UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE, UL_LOGLEVEL, UL_DRYRUN, validate_config
+from config import UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE, UL_LOGLEVEL, UL_DRYRUN, UL_REFRESH_MIN, validate_config
 from dnsquery import lookup
-
 
 ## Logging
 logging.basicConfig(
@@ -58,11 +58,14 @@ def main():
       
 
   finally:
-    # Always logout
+    logger.debug("Logging out from UniFi controller")
     unifi.logout()
   
   logger.info("Sync completed successfully")
 
 
 if __name__ == "__main__":
-  main()
+  while True:
+    main()
+    logger.debug(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
+    sleep(int(UL_REFRESH_MIN) * 60)
