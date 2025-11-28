@@ -1,4 +1,4 @@
-# UniFi Labeler
+# UniFi Netowrk Application device name (alias) labeler
 
 Automatically sync devices DNS hostnames to UniFi Network Application client aliases using reverse DNS lookups. This tool queries DNS PTR records for each device present in UniFI Network Applicationand updates their names (labels) accordingly.
 Suming up:
