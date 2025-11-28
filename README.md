@@ -28,10 +28,10 @@ All configuration is done via environment variables:
 
 ### Using Docker Compose
 
-See [docker-compose.yml](docker-compose.yml) for a complete example.
+See [compose.yml](compose.yml) for a complete example.
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Manual Python Execution (debug)
@@ -39,7 +39,7 @@ docker-compose up -d
 ```bash
 # VirtualENV and dependencies
 python -m venv venv
-. ./venv/activate
+. ./venv/bin/activate
 pip install -r requirements.txt
 export UL_LOGLEVEL=debug
 export UL_UNIFI_HOST="https://unifi.example.com"
