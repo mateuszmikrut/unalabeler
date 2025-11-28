@@ -27,9 +27,10 @@ def main():
   # Connect to UniFi
   logger.debug("Logging in to UniFi controller")
   unifi = UniFiAPI(UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE)
+  logger.info("Connecting to UniFi controller")
   if not unifi.login():
     logger.error("Failed to login to UniFi controller")
-    sys.exit(1)
+    return
   
   try:
     logger.debug("Fetching clients from UniFi controller")
@@ -57,11 +58,11 @@ def main():
           ## Set the name in Unifi
           try:
             unifi.set_client_alias(client_id, dnsname)
-            logger.info(f"Updated client with {ip} ({mac}) label to '{dnsname}'")
+            logger.info(f"Updated client {ip} ({mac}) label to '{dnsname}'")
           except Exception as e:
-            logger.error(f"Error updating client with {ip} ({mac}) label to '{dnsname}': {e}")
+            logger.error(f"Error updating client {ip} ({mac}) label to '{dnsname}': {e}")
         else:
-          logger.info(f"[DRY RUN] Would update client with {ip} ({mac}) label to '{dnsname}'")
+          logger.info(f"[DRY RUN] Would update client {ip} ({mac}) label to '{dnsname}'")
       else:
         logger.debug(f"Client name '{name}' already matches DNS name '{dnsname}', no update needed")
       
