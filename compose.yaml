@@ -1,6 +1,6 @@
 services:
   unifi-labeler:
-    image: ghcr.io/mateusz.mikrut/unifi-labeler:latest
+    image: ghcr.io/mateuszmikrut/unalabeler:latest
     container_name: unifi-labeler
     restart: unless-stopped
     environment:
