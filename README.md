@@ -41,8 +41,11 @@ docker-compose up -d
 python -m venv venv
 . ./venv/activate
 pip install -r requirements.txt
-
-UL_LOGLEVEL=debug UL_UNIFI_HOST=https://unifi.example.com  UL_UNIFI_PASS=SuperSecreatLoooongP@sSw0rd UL_UNIFI_USER=unifiusername python ./main.py
+export UL_LOGLEVEL=debug
+export UL_UNIFI_HOST="https://unifi.example.com"
+export UL_UNIFI_PASS="SuperSecreatLoooongP@sSw0rd"
+export UL_UNIFI_USER=unifiusername
+python ./main.py
 ```
 
 ## DNS Requirements
