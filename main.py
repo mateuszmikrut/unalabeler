@@ -65,7 +65,6 @@ def main():
       else:
         logger.debug(f"Client name '{name}' already matches DNS name '{dnsname}', no update needed")
       
-      
   finally:
     logger.debug("Logging out from UniFi controller")
     unifi.logout()
@@ -84,5 +83,6 @@ if __name__ == "__main__":
         logger.debug(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
         sleep(int(UL_REFRESH_MIN) * 60)
   except KeyboardInterrupt:
-    logger.info("Received keyboard interrupt, exiting gracefully")
+    logger.debug("Received keyboard interrupt, exiting gracefully")
+    logger.info("Exiting sync")
     sys.exit(0)
