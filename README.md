@@ -28,7 +28,7 @@ All configuration is done via environment variables:
 
 ### Using Docker Compose
 
-See [compose.yml](compose.yml) for a complete example.
+See [compose.yml](https://github.com/mateuszmikrut/unalabeler/blob/main/compose.yaml) for a complete example.
 
 ```bash
 docker compose up -d
