@@ -80,7 +80,10 @@ if __name__ == "__main__":
       main()
     else:
       while True:
-        main()
+        try:
+          main()
+        except Exception as e:
+          logger.error(f"Unexpected error during sync: {e}")
         logger.info(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
         sleep(int(UL_REFRESH_MIN) * 60)
   except KeyboardInterrupt:
