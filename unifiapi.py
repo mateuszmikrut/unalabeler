@@ -1,6 +1,5 @@
 """
-UniFi Network Application API client.
-Provides interface for authentication and client management.
+UniFi Network Application API client
 """
 
 import requests
@@ -14,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class UniFiAPI:
-  """UniFi Network Application API client."""
-  
+
   def __init__(self, host, username, password, site="default"):
     self.host = host.rstrip('/')
     self.username = username
@@ -66,17 +64,10 @@ class UniFiAPI:
   def set_client_alias(self, identifier, newname):
     """
     Set alias/name for a client.
-    
-    Args:
-      identifier (str): Client ID or MAC address
-      newname (str): New name/alias to set
-      
-    Returns:
-      bool: True if successful, False otherwise
     """
     url = f"{self.host}/api/s/{self.site}/rest/user"
     
-    # Check if identifier looks like a MAC address (contains colons)
+    # Check if identifier looks like a MAC address
     if ':' in identifier:
       # It's a MAC, need to find the client ID
       logger.debug(f"Identifier '{identifier}' is a MAC address, looking up client ID")
@@ -93,7 +84,7 @@ class UniFiAPI:
         return False
       logger.debug(f"Found client ID: {client_id}")
     else:
-      # Assume it's already a client ID
+      # Already a client ID
       logger.debug(f"Using identifier '{identifier}' as client ID directly")
       client_id = identifier
     
