@@ -29,7 +29,7 @@ def main():
   unifi = UniFiAPI(UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE)
   logger.info("Connecting to UniFi controller")
   if not unifi.login():
-    logger.error("Failed to login to UniFi controller")
+    logger.error("Failed to login to UniFi controller, skipping this run")
     return
   
   try:
@@ -81,7 +81,7 @@ if __name__ == "__main__":
     else:
       while True:
         main()
-        logger.debug(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
+        logger.info(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
         sleep(int(UL_REFRESH_MIN) * 60)
   except KeyboardInterrupt:
     logger.debug("Received keyboard interrupt, exiting gracefully")
