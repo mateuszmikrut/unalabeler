@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       UL_UNIFI_HOST: "https://unifi.example.com"
-      UL_UNIFI_USER: "admin"
+      UL_UNIFI_USER: "username"
       UL_UNIFI_PASS: "your-password-here" # Rather keep it in in secret store or .env file
       UL_UNIFI_SITE: "default"
       UL_REFRESH_MIN: "120"

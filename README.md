@@ -26,6 +26,17 @@ All configuration is done via environment variables:
 
 ## Running
 
+### Using Docker command
+
+```bash
+docker run -ti \
+  -e UL_UNIFI_HOST="https://unifi.example.com" \
+  -e UL_UNIFI_PASS="SuperSecretLoooongP@sSw0rd" \
+  -e UL_UNIFI_USER="username" \
+  -e UL_DRYRUN=true \
+  ghcr.io/mateuszmikrut/unalabeler:latest
+```
+
 ### Using Docker Compose
 
 See [compose.yml](https://github.com/mateuszmikrut/unalabeler/blob/main/compose.yaml) for a complete example.
@@ -43,8 +54,8 @@ python -m venv venv
 pip install -r requirements.txt
 export UL_LOGLEVEL=debug
 export UL_UNIFI_HOST="https://unifi.example.com"
-export UL_UNIFI_PASS="SuperSecreatLoooongP@sSw0rd"
-export UL_UNIFI_USER=unifiusername
+export UL_UNIFI_PASS="SuperSecretLoooongP@sSw0rd"
+export UL_UNIFI_USER="username"
 python ./main.py
 ```
 
