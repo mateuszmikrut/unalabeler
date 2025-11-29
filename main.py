@@ -8,7 +8,7 @@ from pathlib import Path
 from time import sleep
 
 from unifiapi import UniFiAPI
-from config import UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE, UL_LOGLEVEL, UL_DRYRUN, UL_REFRESH_MIN, UL_SHORTNAMES, validate_config
+from config import UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE, UL_LOGLEVEL, UL_DRYRUN, UL_REFRESH_MIN, UL_SHORTNAMES, UL_FIRSTSYNCDELAY_MIN, validate_config
 from dnsquery import lookup
 
 ## Logging
@@ -17,10 +17,9 @@ logging.basicConfig(
     format = '%(asctime)s - %(levelname)s - %(message)s'
 )  
 logger = logging.getLogger(__name__)
-logger.info(f"Log level set to: {UL_LOGLEVEL}")
+logger.debug(f"Log level set to: {UL_LOGLEVEL}")
 
 def main():
-  logger.info("Starting UniFi hostname sync")
   logger.debug("Validating configuration")
   validate_config()
 
@@ -74,11 +73,14 @@ def main():
 
 
 if __name__ == "__main__":
+  logger.info("Starting UniFi devices names sync")
   try:
     if UL_DRYRUN:
       logger.debug("DRY RUN only - single execution")
       main()
     else:
+      logger.debug(f"Waiting {UL_FIRSTSYNCDELAY_MIN} minutes before first sync")
+      sleep(int(UL_FIRSTSYNCDELAY_MIN) * 60)
       while True:
         try:
           main()

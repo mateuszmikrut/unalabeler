@@ -19,6 +19,7 @@ All configuration is done via environment variables:
 | `UL_UNIFI_PASS` | Y | - | UniFi controller password |
 | `UL_UNIFI_SITE` | N | `default` | UniFi site name |
 | `UL_REFRESH_MIN` | N | `120` | Refresh interval in minutes (not in DRYRUN) |
+| `UL_FIRSTSYNCDELAY_MIN` | N | `2` | Time waiting before first sync. Useful because Unifi Net App takes some time to start |
 | `UL_LOGLEVEL` | N | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `UL_SHORTNAMES` | N | `true` | Use short hostnames (strip domain suffix) |
 | `UL_DRYRUN` | N | `false` | Dry-run mode - log changes without applying them - It runs and exit|
