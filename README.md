@@ -1,5 +1,11 @@
 # UniFi Netowrk Application device name (alias) labeler
 
+[![AGPL v3](https://shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.en.html)
+[![Image Build](https://github.com/mateuszmikrut/unalabeler/actions/workflows/docker-build.yml/badge.svg
+)](https://github.com/mateuszmikrut/unalabeler/actions/workflows/docker-build.yml)
+[![GitHub last commit](https://img.shields.io/github/last-commit/mateuszmikrut/unalabeler)](https://github.com/mateuszmikrut/unalabeler/commit/main)
+[![X Follow](https://img.shields.io/twitter/follow/mateusz_mikrut)](https://x.com/mateusz_mikrut)
+
 Automatically sync devices DNS hostnames to UniFi Network Application client aliases using reverse DNS lookups. This tool queries DNS PTR records for each device present in UniFI Network Applicationand updates their names (labels) accordingly.
 Suming up:
 
