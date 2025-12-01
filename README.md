@@ -6,7 +6,7 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/mateuszmikrut/unalabeler)](https://github.com/mateuszmikrut/unalabeler/commit/main)
 [![X Follow](https://img.shields.io/twitter/follow/mateusz_mikrut)](https://x.com/mateusz_mikrut)
 
-Automatically sync devices DNS hostnames to UniFi Network Application client aliases using reverse DNS lookups. This tool queries DNS PTR records for each device present in UniFI Network Applicationand updates their names (labels) accordingly.
+Automatically sync devices DNS hostnames to UniFi Network Application client aliases using reverse DNS lookups. This tool queries DNS PTR records for each device present in UniFI Network Application and updates their names (labels) accordingly.
 Suming up:
 
 - 🔄 Synchronization of DNS names to UniFi client aliases  

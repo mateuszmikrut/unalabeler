@@ -1,6 +1,3 @@
-"""
-DNS lookup tool for easy handling
-"""
 import socket
 import ipaddress
 
