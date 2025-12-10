@@ -38,8 +38,8 @@ def main():
     # Counters for reporting
     total = len(clients)
     updated = 0
-    would_update = 0
-    skipped = 0
+    missing = 0 
+    good = 0
     errors = 0
 
     for client in clients:
@@ -51,8 +51,8 @@ def main():
 
       dnsname = lookup(ip)
       if dnsname is None:
+        missing += 1
         logger.warning(f"No DNS name found for IP {ip}, ingnoring client")
-        errors += 1
         continue
 
       if UL_SHORTNAMES:
@@ -75,10 +75,10 @@ def main():
             errors += 1
             logger.error(f"Error updating client {ip} ({mac}) label to '{dnsname}': {e}")
         else:
-          would_update += 1
+          updated += 1
           logger.info(f"[DRY RUN] Would update client {ip} ({mac}) label to '{dnsname}'")
       else:
-        skipped += 1
+        good += 1
         logger.debug(f"Client name '{name}' already matches DNS name '{dnsname}', no update needed")
 
   finally:
@@ -87,9 +87,9 @@ def main():
 
   # Log a concise summary. Show `would_update` only for dry-run runs.
   if UL_DRYRUN:
-    logger.info(f"Sync completed: processed={total}, would_update={would_update}, skipped={skipped}, errors={errors}")
+    logger.info(f"Sync completed ({total} devices): ok={good}, would update={updated}, missing dns={missing}, errors={errors}")
   else:
-    logger.info(f"Sync completed: processed={total}, updated={updated}, skipped={skipped}, errors={errors}")
+    logger.info(f"Sync completed ({total} devices): ok={good}, updated={updated},  missing dns={missing},  errors={errors}")
 
 
 if __name__ == "__main__":
