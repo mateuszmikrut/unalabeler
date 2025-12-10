@@ -51,8 +51,8 @@ def main():
 
       dnsname = lookup(ip)
       if dnsname is None:
-        logger.debug(f"No DNS name found for IP {ip}, skipping client")
-        skipped += 1
+        logger.warning(f"No DNS name found for IP {ip}, ingnoring client")
+        errors += 1
         continue
 
       if UL_SHORTNAMES:
