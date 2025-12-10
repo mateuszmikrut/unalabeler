@@ -34,7 +34,14 @@ def main():
   try:
     logger.debug("Fetching clients from UniFi controller")
     clients = unifi.get_clients()
-    
+
+    # Counters for reporting
+    total = len(clients)
+    updated = 0
+    would_update = 0
+    skipped = 0
+    errors = 0
+
     for client in clients:
       name = client.get('name', 'N/A')
       ip = client.get('ip', 'N/A')
@@ -43,33 +50,46 @@ def main():
       logger.debug(f"Processing client: {name} <{ip}> ({client_id})")
 
       dnsname = lookup(ip)
-      if dnsname == None:
+      if dnsname is None:
         logger.debug(f"No DNS name found for IP {ip}, skipping client")
+        skipped += 1
         continue
 
       if UL_SHORTNAMES:
-          logger.debug(f"Using shortname for DNS name '{dnsname}'")
-          dnsname = dnsname.split('.')[0]
-          logger.debug(f"Shortened DNS name to: {dnsname}")
+        logger.debug(f"Using shortname for DNS name '{dnsname}'")
+        dnsname = dnsname.split('.')[0]
+        logger.debug(f"Shortened DNS name to: {dnsname}")
 
       if dnsname != name:
         if not UL_DRYRUN:
-          ## Set the name in Unifi
+          # Attempt to set the name in UniFi
           try:
-            unifi.set_client_alias(client_id, dnsname)
-            logger.info(f"Updated client {ip} ({mac}) label to '{dnsname}'")
+            ok = unifi.set_client_alias(client_id, dnsname)
+            if ok:
+              updated += 1
+              logger.info(f"Updated client {ip} ({mac}) label to '{dnsname}'")
+            else:
+              errors += 1
+              logger.error(f"Failed to update client {ip} ({mac}) label to '{dnsname}'")
           except Exception as e:
+            errors += 1
             logger.error(f"Error updating client {ip} ({mac}) label to '{dnsname}': {e}")
         else:
+          would_update += 1
           logger.info(f"[DRY RUN] Would update client {ip} ({mac}) label to '{dnsname}'")
       else:
+        skipped += 1
         logger.debug(f"Client name '{name}' already matches DNS name '{dnsname}', no update needed")
-      
+
   finally:
     logger.debug("Logging out from UniFi controller")
     unifi.logout()
 
-  logger.info(f"Sync completed successfully - processed {len(clients)} devices")
+  # Log a concise summary. Show `would_update` only for dry-run runs.
+  if UL_DRYRUN:
+    logger.info(f"Sync completed: processed={total}, would_update={would_update}, skipped={skipped}, errors={errors}")
+  else:
+    logger.info(f"Sync completed: processed={total}, updated={updated}, skipped={skipped}, errors={errors}")
 
 
 if __name__ == "__main__":
