@@ -7,12 +7,6 @@
 [![X Follow](https://img.shields.io/twitter/follow/mateusz_mikrut)](https://x.com/mateusz_mikrut)
 
 Automatically sync devices DNS hostnames to UniFi Network Application client aliases using reverse DNS lookups. This tool queries DNS PTR records for each device present in UniFI Network Application and updates their names (labels) accordingly.
-Suming up:
-
-- 🔄 Synchronization of DNS names to UniFi client aliases  
-- 🔍 Reverse DNS lookup for client identification
-- 🏷️ Optional short name mode (removes domain suffix)
-- 🧪 Dry-run mode for testing without making changes
 
 ## Configuration
 
