@@ -1,114 +1,118 @@
 #!/usr/bin/env python3
-"""
-Sync DNS entries with UNIFI device labels
-"""
+"""Sync reverse DNS hostnames to UniFi OS client names."""
+
+import argparse
 import logging
 import sys
-from pathlib import Path
 from time import sleep
 
+from config import (
+    UL_UNIFI_HOST, UL_UNIFI_API_KEY, UL_UNIFI_SITE, UL_VERIFY_SSL,
+    UL_LOGLEVEL, UL_DRYRUN, UL_REFRESH_MIN, UL_SHORTNAMES,
+    UL_FIRSTSYNCDELAY_MIN, validate_config,
+)
+from dnsquery import is_valid_ip, reverse_lookup
 from unifiapi import UniFiAPI
-from config import UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE, UL_LOGLEVEL, UL_DRYRUN, UL_REFRESH_MIN, UL_SHORTNAMES, UL_FIRSTSYNCDELAY_MIN, validate_config
-from dnsquery import lookup
 
-## Logging
-logging.basicConfig(
-    level = getattr(logging, UL_LOGLEVEL, logging.INFO),
-    format = '%(asctime)s - %(levelname)s - %(message)s'
-)  
 logger = logging.getLogger(__name__)
-logger.debug(f"Log level set to: {UL_LOGLEVEL}")
+
+
+def sync_clients(unifi, *, dry_run=False, short_names=True):
+    clients = unifi.get_clients()
+    counts = dict(total=len(clients), good=0, updated=0, missing=0, errors=0)
+    for client in clients:
+        name = client.get("name") or ""
+        ip = client.get("ip")
+        mac = client.get("mac", "N/A")
+        client_id = client.get("_id")
+
+        # Never forward-resolve a missing/invalid IP and use its address as a name.
+        if not isinstance(ip, str) or not is_valid_ip(ip):
+            counts["missing"] += 1
+            logger.warning("Client %s has no valid IP address, skipping", mac)
+            continue
+        dnsname = reverse_lookup(ip)
+        if not dnsname:
+            counts["missing"] += 1
+            logger.warning("No DNS name found for IP %s, ignoring client", ip)
+            continue
+        dnsname = dnsname.rstrip(".")
+        if not dnsname or is_valid_ip(dnsname):
+            counts["missing"] += 1
+            logger.warning("No usable DNS hostname for IP %s, ignoring client", ip)
+            continue
+        if short_names:
+            dnsname = dnsname.split(".")[0]
+        if not dnsname:
+            counts["missing"] += 1
+            continue
+        if dnsname == name:
+            counts["good"] += 1
+            logger.debug("Client %s already matches DNS name '%s'", ip, dnsname)
+            continue
+        if not isinstance(client_id, str) or not client_id:
+            counts["errors"] += 1
+            logger.error("Client %s (%s) has no client ID, skipping", ip, mac)
+            continue
+        if dry_run:
+            counts["updated"] += 1
+            logger.info("[DRY RUN] Would update client %s (%s) label from '%s' to '%s'",
+                        ip, mac, name, dnsname)
+            continue
+        try:
+            if unifi.set_client_alias(client_id, dnsname):
+                counts["updated"] += 1
+                logger.info("Updated client %s (%s) label from '%s' to '%s'", ip, mac, name, dnsname)
+            else:
+                counts["errors"] += 1
+                logger.error("Failed to update client %s (%s) label to '%s'", ip, mac, dnsname)
+        except Exception as exc:
+            counts["errors"] += 1
+            logger.error("Error updating client %s (%s): %s", ip, mac, exc)
+
+    logger.info("Sync completed (%s devices): ok=%s, %s=%s, missing dns=%s, errors=%s",
+                counts["total"], counts["good"], "would update" if dry_run else "updated",
+                counts["updated"], counts["missing"], counts["errors"])
+    return counts
+
 
 def main():
-  logger.debug("Validating configuration")
-  validate_config()
+    validate_config()
+    logger.info("Connecting to UniFi OS Network with an API key")
+    unifi = UniFiAPI(UL_UNIFI_HOST, UL_UNIFI_API_KEY, UL_UNIFI_SITE, verify_ssl=UL_VERIFY_SSL)
+    try:
+        counts = sync_clients(unifi, dry_run=UL_DRYRUN, short_names=UL_SHORTNAMES)
+        return 1 if counts["errors"] else 0
+    finally:
+        unifi.close()
 
-  # Connect to UniFi
-  logger.debug("Logging in to UniFi controller")
-  unifi = UniFiAPI(UL_UNIFI_HOST, UL_UNIFI_USER, UL_UNIFI_PASS, UL_UNIFI_SITE)
-  logger.info("Connecting to UniFi controller")
-  if not unifi.login():
-    logger.error("Failed to login to UniFi controller, skipping this run")
-    return
-  
-  try:
-    logger.debug("Fetching clients from UniFi controller")
-    clients = unifi.get_clients()
 
-    # Counters for reporting
-    total = len(clients)
-    updated = 0
-    missing = 0 
-    good = 0
-    errors = 0
-
-    for client in clients:
-      name = client.get('name', 'N/A')
-      ip = client.get('ip', 'N/A')
-      mac = client.get('mac', 'N/A')
-      client_id = client.get('_id', 'N/A')
-      logger.debug(f"Processing client: {name} <{ip}> ({client_id})")
-
-      dnsname = lookup(ip)
-      if dnsname is None:
-        missing += 1
-        logger.warning(f"No DNS name found for IP {ip}, ingnoring client")
-        continue
-
-      if UL_SHORTNAMES:
-        logger.debug(f"Using shortname for DNS name '{dnsname}'")
-        dnsname = dnsname.split('.')[0]
-        logger.debug(f"Shortened DNS name to: {dnsname}")
-
-      if dnsname != name:
-        if not UL_DRYRUN:
-          # Attempt to set the name in UniFi
-          try:
-            ok = unifi.set_client_alias(client_id, dnsname)
-            if ok:
-              updated += 1
-              logger.info(f"Updated client {ip} ({mac}) label to '{dnsname}'")
-            else:
-              errors += 1
-              logger.error(f"Failed to update client {ip} ({mac}) label to '{dnsname}'")
-          except Exception as e:
-            errors += 1
-            logger.error(f"Error updating client {ip} ({mac}) label to '{dnsname}': {e}")
-        else:
-          updated += 1
-          logger.info(f"[DRY RUN] Would update client {ip} ({mac}) label to '{dnsname}'")
-      else:
-        good += 1
-        logger.debug(f"Client name '{name}' already matches DNS name '{dnsname}', no update needed")
-
-  finally:
-    logger.debug("Logging out from UniFi controller")
-    unifi.logout()
-
-  # Log a concise summary. Show `would_update` only for dry-run runs.
-  if UL_DRYRUN:
-    logger.info(f"Sync completed ({total} devices): ok={good}, would update={updated}, missing dns={missing}, errors={errors}")
-  else:
-    logger.info(f"Sync completed ({total} devices): ok={good}, updated={updated},  missing dns={missing},  errors={errors}")
+def cli(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--once", action="store_true", help="Run once immediately, then exit (respects UL_DRYRUN)")
+    args = parser.parse_args(argv)
+    logging.basicConfig(level=getattr(logging, UL_LOGLEVEL, logging.INFO),
+                        format="%(asctime)s - %(levelname)s - %(message)s")
+    try:
+        validate_config()
+        if args.once or UL_DRYRUN:
+            return main()
+        logger.info("Waiting %s minutes before first sync", UL_FIRSTSYNCDELAY_MIN)
+        sleep(float(UL_FIRSTSYNCDELAY_MIN) * 60)
+        while True:
+            try:
+                main()
+            except Exception as exc:
+                logger.error("Sync failed: %s", exc)
+            logger.info("Sleeping for %s minutes before next sync", UL_REFRESH_MIN)
+            sleep(float(UL_REFRESH_MIN) * 60)
+    except KeyboardInterrupt:
+        logger.info("Exiting sync")
+        return 0
+    except Exception as exc:
+        logger.error("Sync failed: %s", exc)
+        return 1
 
 
 if __name__ == "__main__":
-  logger.info("Starting UniFi devices names sync")
-  try:
-    if UL_DRYRUN:
-      logger.debug("DRY RUN only - single execution")
-      main()
-    else:
-      logger.debug(f"Waiting {UL_FIRSTSYNCDELAY_MIN} minutes before first sync")
-      sleep(int(UL_FIRSTSYNCDELAY_MIN) * 60)
-      while True:
-        try:
-          main()
-        except Exception as e:
-          logger.error(f"Unexpected error during sync: {e}")
-        logger.info(f"Sleeping for {UL_REFRESH_MIN} minutes before next sync")
-        sleep(int(UL_REFRESH_MIN) * 60)
-  except KeyboardInterrupt:
-    logger.debug("Received keyboard interrupt, exiting gracefully")
-    logger.info("Exiting sync")
-    sys.exit(0)
+    sys.exit(cli())

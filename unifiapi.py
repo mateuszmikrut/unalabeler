@@ -1,112 +1,101 @@
-"""
-UniFi Network Application API client
-"""
+"""UniFi OS Network API client, authenticated with a local API key."""
+
+import logging
+from urllib.parse import quote, urlsplit
 
 import requests
-import urllib3
-import logging
-
-# Disable SSL warnings for self-signed certificates
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
 
+class UniFiAPIError(RuntimeError):
+    """A request failed, or UniFi returned an unsuccessful API response."""
+
+
 class UniFiAPI:
+    def __init__(self, host, api_key, site="default", *, verify_ssl=True, timeout=30):
+        host = host.strip()
+        if "://" not in host:
+            host = f"https://{host}"
+        parsed = urlsplit(host)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.path not in ("", "/")
+                or parsed.query or parsed.fragment or parsed.username or parsed.password):
+            raise ValueError("UL_UNIFI_HOST must be a console hostname or HTTPS origin (no UI/API path)")
+        if not api_key.strip():
+            raise ValueError("UL_UNIFI_API_KEY must not be empty")
+        if not site.strip() or site in (".", ".."):
+            raise ValueError("UL_UNIFI_SITE must be a Network site name, usually 'default'")
 
-  def __init__(self, host, username, password, site="default"):
-    self.host = host.rstrip('/')
-    self.username = username
-    self.password = password
-    self.site = site
-    self.session = requests.Session()
-    self.session.verify = False  # Skip SSL verification for self-signed certs
+        self.host = host.rstrip("/")
+        self.site = site
+        self.base_path = f"/proxy/network/api/s/{quote(site, safe='')}"
+        self.timeout = timeout
+        self.session = requests.Session()
+        self.session.verify = verify_ssl
+        self.session.headers.update({"Accept": "application/json", "X-API-Key": api_key})
 
-    
-  def login(self):
-    """Authenticate with UniFi controller."""
-    url = f"{self.host}/api/login"
-    payload = {
-      "username": self.username,
-      "password": self.password,
-      "remember": False
-    }
-    
-    try:
-      response = self.session.post(url, json=payload)
-      response.raise_for_status()
-      logger.debug("Successfully logged in to UniFi controller")
-      return True
-    except requests.exceptions.RequestException as e:
-      logger.error(f"Login failed: {e}")
-      return False
-  
-  def get_clients(self):
-    """Get list of all clients from UniFi."""
-    url = f"{self.host}/api/s/{self.site}/stat/sta"
-    
-    try:
-      response = self.session.get(url)
-      response.raise_for_status()
-      data = response.json()
-      
-      if data.get("meta", {}).get("rc") == "ok":
-        clients = data.get("data", [])
-        logger.debug(f"Retrieved {len(clients)} clients from UniFi")
+    def _apirequest(self, method, path, payload=None):
+        try:
+            response = self.session.request(
+                method, f"{self.host}{path}", json=payload,
+                timeout=self.timeout, allow_redirects=False,
+            )
+        except requests.exceptions.SSLError as exc:
+            raise UniFiAPIError(
+                "TLS certificate verification failed. Trust the console certificate "
+                "(REQUESTS_CA_BUNDLE), or set UL_VERIFY_SSL=false for a self-signed console."
+            ) from exc
+        except requests.exceptions.RequestException as exc:
+            raise UniFiAPIError(f"UniFi {method} request failed: {exc}") from exc
+
+        if response.status_code in (401, 403):
+            raise UniFiAPIError(
+                f"UniFi returned HTTP {response.status_code}. Check that the local Network "
+                "API key is valid and has permission to read and rename clients."
+            )
+        if not 200 <= response.status_code < 300:
+            raise UniFiAPIError(
+                f"UniFi {method} {path} returned HTTP {response.status_code}; "
+                "check the console address, site name, and Network API support."
+            )
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise UniFiAPIError("UniFi returned a non-JSON response; check the console address") from exc
+
+        if not isinstance(result, dict) or not isinstance(result.get("meta"), dict):
+            raise UniFiAPIError("UniFi returned an unexpected Network API response")
+        if result["meta"].get("rc") != "ok":
+            raise UniFiAPIError(f"UniFi API error: {result['meta'].get('msg', 'unknown error')}")
+        return result
+
+    def get_clients(self):
+        """Return connected clients with their Network user IDs."""
+        result = self._apirequest("GET", f"{self.base_path}/stat/sta")
+        clients = result.get("data")
+        if not isinstance(clients, list) or any(not isinstance(c, dict) for c in clients):
+            raise UniFiAPIError("UniFi returned an invalid client list")
+        logger.debug("Retrieved %s clients from UniFi", len(clients))
         return clients
-      else:
-        logger.error("Failed to get clients from UniFi")
-        return []
-    except requests.exceptions.RequestException as e:
-      logger.error(f"Error getting clients: {e}")
-      return []
-  
-  def set_client_alias(self, identifier, newname):
-    """
-    Set alias/name for a client.
-    """
-    url = f"{self.host}/api/s/{self.site}/rest/user"
-    
-    # Check if identifier looks like a MAC address
-    if ':' in identifier:
-      # It's a MAC, need to find the client ID
-      logger.debug(f"Identifier '{identifier}' is a MAC address, looking up client ID")
-      clients = self.get_clients()
-      client = next((c for c in clients if c.get("mac", "").lower() == identifier.lower()), None)
-      
-      if not client:
-        logger.warning(f"Client with MAC {identifier} not found in UniFi")
-        return False
-      
-      client_id = client.get("_id")
-      if not client_id:
-        logger.error(f"No client ID found for MAC {identifier}")
-        return False
-      logger.debug(f"Found client ID: {client_id}")
-    else:
-      # Already a client ID
-      logger.debug(f"Using identifier '{identifier}' as client ID directly")
-      client_id = identifier
-    
-    # Update client alias
-    payload = {
-      "name": newname
-    }
-    
-    try:
-      response = self.session.put(f"{url}/{client_id}", json=payload)
-      response.raise_for_status()
-      logger.debug(f"Updated client {identifier} name to '{newname}'")
-      return True
-    except requests.exceptions.RequestException as e:
-      logger.error(f"Error updating client {identifier}: {e}")
-      return False
-  
-  def logout(self):
-    """Logout from UniFi controller."""
-    url = f"{self.host}/api/logout"
-    try:
-      self.session.post(url)
-      logger.debug("Logged out from UniFi controller")
-    except Exception as e:
-      logger.debug(f"Logout error (non-critical): {e}")
+
+    def set_client_alias(self, identifier, newname):
+        """Update only the client name, using a Network user _id or MAC address."""
+        if not isinstance(identifier, str) or not identifier or identifier in (".", ".."):
+            raise ValueError("A client ID or MAC address is required")
+        if not isinstance(newname, str) or not newname.strip():
+            raise ValueError("A non-empty client name is required")
+        if ":" in identifier:
+            client = next((c for c in self.get_clients()
+                           if c.get("mac", "").lower() == identifier.lower()), None)
+            if not client or not client.get("_id"):
+                raise UniFiAPIError(f"No connected client found for MAC {identifier}")
+            identifier = client["_id"]
+        self._apirequest(
+            "PUT", f"{self.base_path}/rest/user/{quote(identifier, safe='')}",
+            {"name": newname},
+        )
+        return True
+
+    def close(self):
+        # API keys need no login/logout request or browser session/CSRF token.
+        self.session.close()
