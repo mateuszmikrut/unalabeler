@@ -1,15 +1,16 @@
 services:
   unifi-labeler:
+    build: .
     image: ghcr.io/mateuszmikrut/unalabeler:latest
     container_name: unifi-labeler
     restart: unless-stopped
     environment:
-      UL_UNIFI_HOST: "https://unifi.example.com"
-      UL_UNIFI_USER: "username"
-      UL_UNIFI_PASS: "your-password-here" # Rather keep it in in secret store or .env file
-      UL_UNIFI_SITE: "default"
-      UL_REFRESH_MIN: "120"
-      UL_FIRSTSYNCDELAY_MIN: "2"
-      UL_LOGLEVEL: "INFO"
-      UL_SHORTNAMES: "true"
-      UL_DRYRUN: "false"
+      UL_UNIFI_HOST: "${UL_UNIFI_HOST:?Set UL_UNIFI_HOST in .env}"
+      UL_UNIFI_API_KEY: "${UL_UNIFI_API_KEY:?Set UL_UNIFI_API_KEY in .env}"
+      UL_UNIFI_SITE: "${UL_UNIFI_SITE:-default}"
+      UL_VERIFY_SSL: "${UL_VERIFY_SSL:-true}"
+      UL_REFRESH_MIN: "${UL_REFRESH_MIN:-120}"
+      UL_FIRSTSYNCDELAY_MIN: "${UL_FIRSTSYNCDELAY_MIN:-2}"
+      UL_LOGLEVEL: "${UL_LOGLEVEL:-INFO}"
+      UL_SHORTNAMES: "${UL_SHORTNAMES:-true}"
+      UL_DRYRUN: "${UL_DRYRUN:-false}"
