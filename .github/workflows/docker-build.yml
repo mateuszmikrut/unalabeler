@@ -1,21 +1,51 @@
-name: Build and Push Docker Image
+name: Build Docker Image and Create Release
 
 on:
   push:
     branches:
       - main
     tags:
-      - 'v*'
-  pull_request:
-    branches:
-      - main
+      # GitHub tag filters are globs; validate SemVer before building.
+      - '[0-9]*.[0-9]*.[0-9]*'
+      - 'v[0-9]*.[0-9]*.[0-9]*'
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  validate-ref:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.ref.outputs.build }}
+      prerelease: ${{ steps.ref.outputs.prerelease }}
+    steps:
+      - name: Check main branch or semantic version tag
+        id: ref
+        shell: python {0}
+        run: |
+          import os
+          import re
+
+          # Official https://semver.org/ regex; allow an optional v prefix.
+          semver = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+          ref = os.environ["GITHUB_REF"]
+          is_tag = ref.startswith("refs/tags/")
+          version = ref.removeprefix("refs/tags/").removeprefix("v")
+          version_match = re.fullmatch(semver, version, flags=re.ASCII) if is_tag else None
+          build = ref == "refs/heads/main" or version_match is not None
+          prerelease = version_match is not None and version_match.group(4) is not None
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"build={str(build).lower()}\n")
+              output.write(f"prerelease={str(prerelease).lower()}\n")
+          if not build:
+              print(f"Skipping non-release ref: {ref}")
+
   build-and-push:
+    needs: validate-ref
+    if: needs.validate-ref.outputs.build == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,21 +70,47 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=false
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
+
+  create-release:
+    needs: [validate-ref, build-and-push]
+    if: github.ref_type == 'tag' && needs.validate-ref.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Create GitHub release with generated notes
+        shell: bash
+        env:
+          IS_PRERELEASE: ${{ needs.validate-ref.outputs.prerelease }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "Release already exists for $GITHUB_REF_NAME; skipping."
+            exit 0
+          fi
+
+          args=("$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes)
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${args[@]}"
