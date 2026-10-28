@@ -50,6 +50,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image-tags: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout repository
@@ -99,18 +101,51 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - name: Create GitHub release with generated notes
+      - name: Create or update GitHub release with image link
         shell: bash
         env:
           IS_PRERELEASE: ${{ needs.validate-ref.outputs.prerelease }}
+          IMAGE_TAGS: ${{ needs.build-and-push.outputs.image-tags }}
+          RELEASE_NOTES_FILE: ${{ runner.temp }}/release-notes.md
+          EXISTING_NOTES_FILE: ${{ runner.temp }}/existing-release-notes.md
         run: |
-          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            echo "Release already exists for $GITHUB_REF_NAME; skipping."
-            exit 0
+          export RELEASE_EXISTS=false
+          if gh release view "$GITHUB_REF_NAME" --json body --jq '.body // ""' > "$EXISTING_NOTES_FILE" 2>/dev/null; then
+            export RELEASE_EXISTS=true
           fi
 
-          args=("$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes)
-          if [[ "$IS_PRERELEASE" == "true" ]]; then
-            args+=(--prerelease)
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          from urllib.parse import quote
+
+          # Use the exact published tag, including metadata-action's normalization.
+          image = os.environ["IMAGE_TAGS"].splitlines()[0]
+          repository = os.environ["GH_REPO"]
+          package = quote(repository.split("/", 1)[1].lower(), safe="")
+          package_url = f"{os.environ['GITHUB_SERVER_URL']}/{repository}/pkgs/container/{package}"
+          section = (
+              "<!-- docker-image -->\n"
+              "## Docker image\n\n"
+              f"[{image}]({package_url})\n\n"
+              f"```bash\ndocker pull {image}\n```\n"
+              "<!-- /docker-image -->\n"
+          )
+          existing = ""
+          if os.environ["RELEASE_EXISTS"] == "true":
+              existing = Path(os.environ["EXISTING_NOTES_FILE"]).read_text()
+              existing = re.sub(r"<!-- docker-image -->.*?<!-- /docker-image -->\n*", "", existing, flags=re.S)
+          notes = section + ("\n" + existing if existing else "")
+          Path(os.environ["RELEASE_NOTES_FILE"]).write_text(notes)
+          PY
+
+          if [[ "$RELEASE_EXISTS" == "true" ]]; then
+            gh release edit "$GITHUB_REF_NAME" --notes-file "$RELEASE_NOTES_FILE"
+          else
+            args=("$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes --notes-file "$RELEASE_NOTES_FILE")
+            if [[ "$IS_PRERELEASE" == "true" ]]; then
+              args+=(--prerelease)
+            fi
+            gh release create "${args[@]}"
           fi
-          gh release create "${args[@]}"
