@@ -235,7 +235,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      GRYPE_REPORT_DIR: ${{ runner.temp }}/grype-reports
     steps:
       - name: Download Grype reports
         uses: actions/download-artifact@v4
@@ -246,6 +245,7 @@ jobs:
       - name: Create or update GitHub release with image and Grype results
         shell: bash
         env:
+          GRYPE_REPORT_DIR: ${{ runner.temp }}/grype-reports
           IS_PRERELEASE: ${{ needs.validate-ref.outputs.prerelease }}
           IMAGE_TAGS: ${{ needs.build-and-push.outputs.image-tags }}
           RELEASE_NOTES_FILE: ${{ runner.temp }}/release-notes.md
@@ -298,4 +298,6 @@ jobs:
           fi
 
       - name: Attach Grype reports to release
+        env:
+          GRYPE_REPORT_DIR: ${{ runner.temp }}/grype-reports
         run: gh release upload "$GITHUB_REF_NAME" "$GRYPE_REPORT_DIR"/* --clobber
