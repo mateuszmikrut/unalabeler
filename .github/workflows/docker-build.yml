@@ -131,80 +131,6 @@ jobs:
               if expected not in result.stdout:
                   raise SystemExit(f"{platform}: expected log message: {expected}")
 
-      - name: Install Grype
-        id: grype
-        uses: anchore/scan-action/download-grype@v7
-
-      - name: Scan built image and summarize Grype results
-        shell: python {0}
-        env:
-          GRYPE_CMD: ${{ steps.grype.outputs.cmd }}
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
-          GRYPE_REPORT_DIR: ${{ runner.temp }}/grype-reports
-        run: |
-          from collections import Counter
-          from datetime import datetime, timezone
-          import json
-          import os
-          from pathlib import Path
-          import subprocess
-          from urllib.parse import quote
-
-          reports = Path(os.environ["GRYPE_REPORT_DIR"])
-          reports.mkdir(parents=True, exist_ok=True)
-          digest = os.environ["IMAGE_DIGEST"]
-          severities = ("Critical", "High", "Medium", "Low", "Negligible", "Unknown")
-          lines = [
-              "## Grype vulnerability scan", "",
-              f"Image digest: `{digest}`", "",
-              f"Scanned at {datetime.now(timezone.utc).isoformat(timespec='seconds')}.", "",
-              "Vulnerability matches per platform:", "",
-              "| Platform | " + " | ".join(severities) + " | Total |",
-              "| --- | " + " | ".join("---:" for _ in severities) + " | ---: |",
-          ]
-          versions = set()
-          for arch in ("amd64", "arm64"):
-              report_file = reports / f"grype-linux-{arch}.json"
-              with report_file.open("w") as output:
-                  subprocess.run(
-                      [os.environ["GRYPE_CMD"], f"docker:{digest}",
-                       "--platform", f"linux/{arch}", "--output", "json"],
-                      stdout=output,
-                      check=True,
-                  )
-              report = json.loads(report_file.read_text())
-              versions.add(report["descriptor"]["version"])
-              counts = Counter(
-                  match["vulnerability"].get("severity") or "Unknown"
-                  for match in report["matches"]
-              )
-              lines.append(
-                  f"| linux/{arch} | " + " | ".join(str(counts[s]) for s in severities)
-                  + f" | {len(report['matches'])} |"
-              )
-          lines.extend(["", f"Grype version: {', '.join(sorted(versions))}.", ""])
-          if os.environ["GITHUB_REF_TYPE"] == "tag":
-              release_url = (
-                  f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}"
-                  f"/releases/download/{quote(os.environ['GITHUB_REF_NAME'], safe='')}"
-              )
-              for arch in ("amd64", "arm64"):
-                  filename = f"grype-linux-{arch}.json"
-                  lines.append(f"- [Full linux/{arch} JSON report]({release_url}/{filename})")
-          else:
-              lines.append("Full JSON reports are in the `grype-reports` workflow artifact.")
-          summary = "\n".join(lines) + "\n"
-          (reports / "grype-summary.md").write_text(summary)
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
-              output.write(summary)
-
-      - name: Save Grype reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: grype-reports
-          path: ${{ runner.temp }}/grype-reports/
-          if-no-files-found: error
-
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
@@ -236,16 +162,9 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - name: Download Grype reports
-        uses: actions/download-artifact@v4
-        with:
-          name: grype-reports
-          path: ${{ runner.temp }}/grype-reports/
-
-      - name: Create or update GitHub release with image and Grype results
+      - name: Create or update GitHub release with image link
         shell: bash
         env:
-          GRYPE_REPORT_DIR: ${{ runner.temp }}/grype-reports
           IS_PRERELEASE: ${{ needs.validate-ref.outputs.prerelease }}
           IMAGE_TAGS: ${{ needs.build-and-push.outputs.image-tags }}
           RELEASE_NOTES_FILE: ${{ runner.temp }}/release-notes.md
@@ -274,15 +193,10 @@ jobs:
               f"```bash\ndocker pull {image}\n```\n"
               "<!-- /docker-image -->\n"
           )
-          grype_summary = (Path(os.environ["GRYPE_REPORT_DIR"]) / "grype-summary.md").read_text()
-          section += f"\n<!-- grype-results -->\n{grype_summary}<!-- /grype-results -->\n"
           existing = ""
           if os.environ["RELEASE_EXISTS"] == "true":
               existing = Path(os.environ["EXISTING_NOTES_FILE"]).read_text()
-              for marker in ("docker-image", "grype-results"):
-                  existing = re.sub(
-                      rf"<!-- {marker} -->.*?<!-- /{marker} -->\n*", "", existing, flags=re.S,
-                  )
+              existing = re.sub(r"<!-- docker-image -->.*?<!-- /docker-image -->\n*", "", existing, flags=re.S)
           notes = section + ("\n" + existing if existing else "")
           Path(os.environ["RELEASE_NOTES_FILE"]).write_text(notes)
           PY
@@ -296,8 +210,3 @@ jobs:
             fi
             gh release create "${args[@]}"
           fi
-
-      - name: Attach Grype reports to release
-        env:
-          GRYPE_REPORT_DIR: ${{ runner.temp }}/grype-reports
-        run: gh release upload "$GITHUB_REF_NAME" "$GRYPE_REPORT_DIR"/* --clobber
