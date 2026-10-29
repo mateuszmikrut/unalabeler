@@ -6,22 +6,7 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/mateuszmikrut/unalabeler)](https://github.com/mateuszmikrut/unalabeler/commit/main)
 [![X Follow](https://img.shields.io/twitter/follow/mateusz_mikrut)](https://x.com/mateusz_mikrut)
 
-Sync reverse DNS hostnames to connected clients' names in UniFi Network on a UniFi OS console. Clients without a valid IP address or reverse DNS result are skipped. Only the client `name` field is updated; matching names are left alone.
-
-## UniFi OS and API keys
-
-Create a local API key in your console's **Network → Settings → Control Plane → Integrations** (the menu location varies by Network version). Set `UL_UNIFI_API_KEY` to that key, with permission to read and update clients. Username/password login is no longer used.
-
-Use the console's local HTTPS address, such as `https://unifi.example.com` or `192.168.1.1`, without a `/network` or `/proxy/network` suffix. Bare hostnames and IP addresses automatically use HTTPS. A port is allowed, for example `https://unifi.example.com:443`.
-
-Client renaming uses the Network API through the UniFi OS proxy:
-
-- Read connected clients: `GET /proxy/network/api/s/{site}/stat/sta`
-- Update a client name: `PUT /proxy/network/api/s/{site}/rest/user/{_id}` with `{"name": "hostname"}`
-
-These are legacy Network endpoints. The [public integration API](https://developer.ui.com/network) uses different IDs and does not currently list a client-renaming operation. This project therefore requires a Network version that accepts local API keys on the legacy endpoints. `UL_UNIFI_SITE` is the legacy site name (usually `default`), not an integration API site UUID. Direct standalone Network controllers without the UniFi OS proxy are not supported by this version.
-
-Live-tested with Network 10.6.106: connected-client reads, reverse DNS lookup, a client-name update, and read-back verification.
+Sync reverse DNS hostnames to connected clients names on UniFi OS console. 
 
 ## Configuration
 
@@ -58,45 +43,6 @@ docker run --rm \
   ghcr.io/mateuszmikrut/unalabeler:latest
 ```
 
-### Using Docker Compose
-
-Copy [.env.example](.env.example) to `.env` and set your console address and API key. `.env` is ignored by Git and excluded from the Docker build context. Compose reads it automatically.
-
-```bash
-docker compose build
-docker compose run --rm -e UL_DRYRUN=true unifi-labeler
-```
-
-After reviewing the proposed names, set `UL_DRYRUN=false` in `.env` and start the scheduled sync:
-
-```bash
-docker compose up -d --build
-```
-
-### Manual Python execution
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-
-# Load your .env into the shell; Python uses the exported environment.
-set -a
-. ./.env
-set +a
-
-# Preview immediately and exit.
-UL_DRYRUN=true python main.py --once
-
-# Apply one sync immediately and exit.
-UL_DRYRUN=false python main.py --once
-
-# Run repeatedly, using UL_FIRSTSYNCDELAY_MIN and UL_REFRESH_MIN.
-UL_DRYRUN=false python main.py
-```
-
-`--once` skips the initial delay and respects `UL_DRYRUN`. Single runs exit nonzero on configuration, connection, or update errors. Missing PTR records are skipped and reported in the summary.
-
 ## DNS Requirements
 
 - Reverse DNS zone (PTR records) must be configured for your network
@@ -109,10 +55,3 @@ UL_DRYRUN=false python main.py
 
 Run one container per site with a different `UL_UNIFI_SITE` setting.
 
-## Tests
-
-The regression tests use mocked HTTP and DNS responses and do not contact your console:
-
-```bash
-python -m unittest discover -s tests -v
-```
